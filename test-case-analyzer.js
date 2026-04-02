@@ -901,7 +901,7 @@ function analyzeTestCases(rows) {
                 try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); break; } catch (e2) { /* continue */ }
             }
         }
-        try { window.parent.postMessage({ type: 'tca-history-updated' }, window.location.origin); } catch (e) {}
+        try { window.dispatchEvent(new CustomEvent('tca-history-updated')); } catch (e) {}
     }
 
     /* ── File selection helpers ── */
