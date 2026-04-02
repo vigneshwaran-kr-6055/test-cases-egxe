@@ -477,7 +477,7 @@
         if (clearGenBtn) {
             clearGenBtn.addEventListener('click', function () {
                 if (confirm('Clear all generated test case history?')) {
-                    localStorage.removeItem(GEN_KEY);
+                    try { localStorage.removeItem(GEN_KEY); } catch (e) { /* blocked in third-party iframe */ }
                     pageState.generated = 1;
                     renderHistory();
                 }
@@ -488,7 +488,7 @@
         if (clearRevBtn) {
             clearRevBtn.addEventListener('click', function () {
                 if (confirm('Clear all reviewed test case history?')) {
-                    localStorage.removeItem(REV_KEY);
+                    try { localStorage.removeItem(REV_KEY); } catch (e) { /* blocked in third-party iframe */ }
                     pageState.reviewed = 1;
                     renderHistory();
                 }
@@ -499,7 +499,7 @@
         if (clearSumBtn) {
             clearSumBtn.addEventListener('click', function () {
                 if (confirm('Clear all test case summary history?')) {
-                    localStorage.removeItem(SUM_KEY);
+                    try { localStorage.removeItem(SUM_KEY); } catch (e) { /* blocked in third-party iframe */ }
                     pageState.summarised = 1;
                     renderHistory();
                 }

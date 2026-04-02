@@ -8,7 +8,8 @@
     <link rel="stylesheet" href="test-case-analyzer.css">
     <script>
         (function () {
-            var t = localStorage.getItem('theme') || 'light';
+            var t = 'light';
+            try { t = localStorage.getItem('theme') || 'light'; } catch (e) { /* blocked in third-party iframe */ }
             document.documentElement.setAttribute('data-theme', t);
         }());
     </script>
@@ -385,7 +386,7 @@
 
     function applyTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
+        try { localStorage.setItem('theme', theme); } catch (e) { /* blocked in third-party iframe */ }
         var icon = toggle.querySelector('.toggle-icon');
         if (theme === 'dark') {
             icon.textContent = '☀️';
