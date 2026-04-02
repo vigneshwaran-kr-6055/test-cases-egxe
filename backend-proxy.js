@@ -2,13 +2,32 @@
 
 const express = require('express');
 const axios = require('axios');
-const bodyParser = require('body-parser');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Allow embedding in Zoho CRM web tabs (and other Zoho products)
+const FRAME_ANCESTORS = [
+    "'self'",
+    'https://*.zoho.com',
+    'https://*.zoho.eu',
+    'https://*.zoho.in',
+    'https://*.zoho.com.au',
+    'https://*.zoho.jp',
+    'https://*.zohocloud.ca',
+].join(' ');
+
+app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS}`);
+    next();
+});
+
 // Middleware
-app.use(bodyParser.json());
+app.use(express.json());
+
+// Serve static files from the app directory
+app.use(express.static(path.join(__dirname)));
 
 // Proxy route to handle Zoho CRM API requests
 app.post('/api/zoho', async (req, res) => {
