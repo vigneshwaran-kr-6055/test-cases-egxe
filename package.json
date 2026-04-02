@@ -1,5 +1,10 @@
 {
+  "scripts": {
+    "start": "node backend-proxy.js"
+  },
   "dependencies": {
+    "axios": "^1.13.5",
+    "express": "^4.21.2",
     "read-excel-file": "^7.0.0"
   }
 }
