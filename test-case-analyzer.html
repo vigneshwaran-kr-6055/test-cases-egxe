@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Case Analyser</title>
+    <link rel="stylesheet" href="test-case-analyzer.css">
+    <script>
+        (function () {
+            var t = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        }());
+    </script>
+    <!-- read-excel-file for XLSX parsing (client-side, no server required) -->
+    <script src="read-excel-file.min.js"></script>
+</head>
+<body>
+
+<main>
+
+    <!-- Upload Card -->
+    <div class="upload-card">
+        <h2>Upload your test case spreadsheet</h2>
+        <p>Supports <strong>.xlsx</strong> and <strong>.csv</strong> files.
+           The tool reads your test cases, understands the feature flow, and highlights missing
+           <em>functional</em>, <em>privacy</em>, <em>security</em>, <em>performance</em>, and <em>compatibility</em> test cases.</p>
+
+        <div class="drop-zone" id="drop-zone">
+            <input type="file" id="file-input" accept=".xlsx,.csv" aria-label="Upload test case file">
+            <span class="icon">📂</span>
+            <div class="label" id="drop-label">Drag &amp; drop your file here, or click to browse</div>
+            <div class="hint"  id="drop-hint">.xlsx · .csv</div>
+        </div>
+
+        <button class="btn-analyze" id="btn-analyze" disabled>Analyse Test Cases</button>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar" role="status" aria-live="polite"></div>
+
+    <!-- Feature Flow Summary -->
+    <div class="section-card" id="sec-feature-summary">
+        <h2>📝 Feature Overview</h2>
+        <div id="feature-summary-content" class="feature-summary-text"></div>
+    </div>
+
+    <!-- Test Case Review Quality -->
+    <div class="section-card" id="sec-review-quality">
+        <h2>🏅 Test Case Review Quality</h2>
+        <div class="review-quality-body" id="review-quality-body"></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="section-card" id="sec-summary">
+        <h2>📊 Summary</h2>
+        <div class="stats-row">
+            <div class="stat-chip">
+                <div class="num" id="stat-total">0</div>
+                <div class="lbl">Total test cases</div>
+            </div>
+            <div class="stat-chip">
+                <div class="num" id="stat-features">0</div>
+                <div class="lbl">Features / modules detected</div>
+            </div>
+            <div class="stat-chip stat-chip--link" style="border-top: 3px solid #e53935;" data-target="sec-functional" role="button" tabindex="0" aria-label="Jump to Functional Test Gaps section">
+                <div class="num" id="stat-fn-miss" style="color:#e53935;">0</div>
+                <div class="lbl">Functional gaps ↓</div>
+            </div>
+            <div class="stat-chip stat-chip--link" style="border-top: 3px solid #fb8c00;" data-target="sec-privacy" role="button" tabindex="0" aria-label="Jump to Privacy Test Gaps section">
+                <div class="num" id="stat-pr-miss" style="color:#fb8c00;">0</div>
+                <div class="lbl">Privacy gaps ↓</div>
+            </div>
+            <div class="stat-chip stat-chip--link" style="border-top: 3px solid #8e24aa;" data-target="sec-security" role="button" tabindex="0" aria-label="Jump to Security Test Gaps section">
+                <div class="num" id="stat-sec-miss" style="color:#8e24aa;">0</div>
+                <div class="lbl">Security gaps ↓</div>
+            </div>
+            <div class="stat-chip stat-chip--link" style="border-top: 3px solid #00897b;" data-target="sec-performance" role="button" tabindex="0" aria-label="Jump to Performance Test Gaps section">
+                <div class="num" id="stat-perf-miss" style="color:#00897b;">0</div>
+                <div class="lbl">Performance gaps ↓</div>
+            </div>
+            <div class="stat-chip stat-chip--link" style="border-top: 3px solid #0277bd;" data-target="sec-compatibility" role="button" tabindex="0" aria-label="Jump to Compatibility Test Gaps section">
+                <div class="num" id="stat-comp-miss" style="color:#0277bd;">0</div>
+                <div class="lbl">Compatibility gaps ↓</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <div class="section-card" id="sec-features">
+        <h2>🗂 Detected Features / Modules</h2>
+        <div class="feature-tags" id="feature-tags-container"></div>
+    </div>
+
+    <!-- Functional Gaps -->
+    <div class="section-card" id="sec-functional">
+        <h2>⚙️ Functional Test Gaps</h2>
+        <div class="gap-body"></div>
+    </div>
+
+    <!-- Privacy Gaps -->
+    <div class="section-card" id="sec-privacy">
+        <h2>🔒 Privacy Test Gaps</h2>
+        <div class="gap-body"></div>
+    </div>
+
+    <!-- Security Gaps -->
+    <div class="section-card" id="sec-security">
+        <h2>🛡 Security Test Gaps</h2>
+        <div class="gap-body"></div>
+    </div>
+
+    <!-- Performance Gaps -->
+    <div class="section-card" id="sec-performance">
+        <h2>⚡ Performance Test Gaps</h2>
+        <div class="gap-body"></div>
+    </div>
+
+    <!-- Compatibility Gaps -->
+    <div class="section-card" id="sec-compatibility">
+        <h2>🌐 Compatibility Test Gaps</h2>
+        <div class="gap-body"></div>
+    </div>
+
+    <!-- Parsed Data Table -->
+    <div class="section-card" id="sec-table">
+        <h2>📋 Parsed Test Cases</h2>
+        <div class="table-wrapper">
+            <table>
+                <thead id="table-head"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<script src="test-case-analyzer.js"></script>
+<script>
+(function () {
+    window.addEventListener('message', function (e) {
+        if (e.origin !== window.location.origin) { return; }
+        if (e.data && e.data.type === 'theme-change') {
+            document.documentElement.setAttribute('data-theme', e.data.theme);
+            localStorage.setItem('theme', e.data.theme);
+        }
+    });
+}());
+</script>
+</body>
+</html>

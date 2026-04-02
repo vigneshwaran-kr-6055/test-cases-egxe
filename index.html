@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Case Assist</title>
+    <link rel="stylesheet" href="main.css">
+    <script>
+        (function () {
+            var t = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        }());
+    </script>
+    <!-- read-excel-file for XLSX parsing used by the generator tab -->
+    <script src="read-excel-file.min.js"></script>
+    <!-- JSZip for DOCX parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <!-- PDF.js for PDF parsing (legacy UMD build) -->
+    <script src="https://unpkg.com/pdfjs-dist@4.9.155/legacy/build/pdf.min.js"></script>
+</head>
+<body>
+
+<header>
+    <span class="logo">🧪</span>
+    <h1>Test Case Assist</h1>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+        <span class="toggle-icon">🌙</span>
+    </button>
+</header>
+
+<!-- ── Tab Navigation ── -->
+<nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" id="tab-reviewer"  role="tab" aria-selected="true"  aria-controls="section-review">🔍 Test Case Reviewer</button>
+    <button class="tab-btn"        id="tab-generator" role="tab" aria-selected="false" aria-controls="section-generator">⚡ Test Case Generator</button>
+    <button class="tab-btn"        id="tab-summary"   role="tab" aria-selected="false" aria-controls="section-summary">📋 Test Case Summary</button>
+    <button class="tab-btn"        id="tab-history"   role="tab" aria-selected="false" aria-controls="section-history">🕑 History</button>
+</nav>
+
+<!-- ── Section 1: Test Case Reviewer ── -->
+<div id="section-review" role="tabpanel" aria-labelledby="tab-reviewer">
+    <iframe src="test-case-analyzer.html"
+            title="Test Case Reviewer"
+            id="review-frame"
+            loading="lazy">
+    </iframe>
+</div>
+
+<!-- ── Section 2: Test Case Generator ── -->
+<div id="section-generator" role="tabpanel" aria-labelledby="tab-generator" hidden>
+    <div class="gen-wrap">
+
+        <!-- Upload Card -->
+        <div class="upload-card">
+            <h2>Generate Test Cases from Use Cases</h2>
+            <p>Upload a <strong>.txt</strong>, <strong>.csv</strong>, <strong>.xlsx</strong>,
+               <strong>.docx</strong>, or <strong>.pdf</strong> file containing your use cases or user stories,
+               and the tool automatically generates structured test cases for each one.</p>
+
+            <div class="drop-zone" id="gen-drop-zone">
+                <input type="file"
+                       id="gen-file-input"
+                       accept=".txt,.csv,.xlsx,.docx,.doc,.pdf"
+                       aria-label="Upload use case file">
+                <span class="icon">📂</span>
+                <div class="label" id="gen-drop-label">Drag &amp; drop your file here, or click to browse</div>
+                <div class="hint"  id="gen-drop-hint">.txt · .csv · .xlsx · .docx · .pdf</div>
+            </div>
+
+            <button class="btn-generate" id="btn-generate" disabled>Generate Test Cases</button>
+        </div>
+
+        <!-- Status bar -->
+        <div id="gen-status" role="status" aria-live="polite"></div>
+
+        <!-- Summary -->
+        <div class="section-card" id="gen-sec-summary">
+            <h2>📊 Summary</h2>
+            <p class="section-label">By Severity</p>
+            <div class="stats-row" style="margin-bottom:20px;">
+                <div class="stat-chip">
+                    <div class="num" id="gen-stat-total">0</div>
+                    <div class="lbl">Total test cases</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #3d0000;">
+                    <div class="num" id="gen-stat-showstopper" style="color:#3d0000;">0</div>
+                    <div class="lbl">Showstopper</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #b71c1c;">
+                    <div class="num" id="gen-stat-critical" style="color:#b71c1c;">0</div>
+                    <div class="lbl">Critical</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #e65100;">
+                    <div class="num" id="gen-stat-major" style="color:#e65100;">0</div>
+                    <div class="lbl">Major</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #f9a825;">
+                    <div class="num" id="gen-stat-minor" style="color:#f9a825;">0</div>
+                    <div class="lbl">Minor</div>
+                </div>
+            </div>
+
+            <p class="section-label">By Type</p>
+            <div class="stats-row">
+                <div class="stat-chip" style="border-top:3px solid #1a73e8;">
+                    <div class="num" id="gen-stat-functional" style="color:#1a73e8;">0</div>
+                    <div class="lbl">Functional</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #2e7d32;">
+                    <div class="num" id="gen-stat-nonfunctional" style="color:#2e7d32;">0</div>
+                    <div class="lbl">Non-functional</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #6a1b9a;">
+                    <div class="num" id="gen-stat-ui" style="color:#6a1b9a;">0</div>
+                    <div class="lbl">UI</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #e65100;">
+                    <div class="num" id="gen-stat-privacy" style="color:#e65100;">0</div>
+                    <div class="lbl">Privacy</div>
+                </div>
+                <div class="stat-chip" style="border-top:3px solid #c62828;">
+                    <div class="num" id="gen-stat-security" style="color:#c62828;">0</div>
+                    <div class="lbl">Security</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="section-card" id="gen-sec-table">
+            <h2>
+                📋 Generated Test Cases
+                <button class="btn-export" id="btn-export-csv">⬇ Export CSV</button>
+            </h2>
+            <!-- ISTQB Standards Banner (shown after generation) -->
+            <div id="gen-standards-banner" class="gen-standards-banner" hidden></div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test Case ID</th>
+                            <th>Use Case Ref</th>
+                            <th>Test Case</th>
+                            <th>Precondition</th>
+                            <th>Steps</th>
+                            <th>Expected Results</th>
+                            <th>Severity</th>
+                            <th>Type</th>
+                            <th>Technique</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gen-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div><!-- /.gen-wrap -->
+</div><!-- /#section-generator -->
+
+<!-- ── Section 3: Test Case Summary ── -->
+<div id="section-summary" role="tabpanel" aria-labelledby="tab-summary" hidden>
+    <div class="sum-wrap">
+
+        <!-- Upload + Model Selection Card -->
+        <div class="upload-card">
+            <h2>Summarise Your Test Cases with AI</h2>
+            <p>Upload a test case spreadsheet (<strong>.xlsx</strong> or <strong>.csv</strong>) and the summary is generated automatically — a plain-language feature narrative describing <em>what the product does</em> and <em>how each feature behaves</em>, so any stakeholder can understand the test suite at a glance.</p>
+
+            <div class="drop-zone" id="sum-drop-zone">
+                <input type="file" id="sum-file-input" accept=".xlsx,.csv" aria-label="Upload test case file">
+                <span class="icon">📂</span>
+                <div class="label" id="sum-drop-label">Drag &amp; drop your file here, or click to browse</div>
+                <div class="hint"  id="sum-drop-hint">.xlsx · .csv</div>
+            </div>
+
+            <button class="btn-summarise" id="btn-summarise" disabled>📋 Summarise Test Cases</button>
+        </div>
+
+        <!-- Status bar -->
+        <div id="sum-status" role="status" aria-live="polite"></div>
+
+        <!-- Stats section -->
+        <div class="section-card" id="sum-sec-stats">
+            <h2>📊 Overview Statistics</h2>
+            <div id="sum-stats-body"></div>
+        </div>
+
+        <!-- AI Summary section -->
+        <div class="section-card" id="sum-sec-summary">
+            <h2 id="sum-summary-title">🤖 AI Summary</h2>
+            <div id="sum-content" class="sum-content-body"></div>
+        </div>
+
+        <!-- Use case breakdown section (hidden — narrative is in the summary section above) -->
+        <div class="section-card" id="sum-sec-usecase" hidden>
+            <h2>📋 Use Case Breakdown</h2>
+            <div id="sum-usecase-body"></div>
+        </div>
+
+    </div><!-- /.sum-wrap -->
+</div><!-- /#section-summary -->
+
+<!-- ── Section 4: History ── -->
+<div id="section-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+    <div class="hist-wrap">
+
+        <!-- Generated Test Cases History -->
+        <div class="hist-panel">
+            <div class="hist-panel-header">
+                <h2>⚡ Generated Test Cases History <span id="hist-gen-count" class="hist-count-badge"></span></h2>
+                <button class="hist-clear-btn" id="hist-clear-gen" aria-label="Clear generated history">🗑 Clear All</button>
+            </div>
+            <div id="hist-gen-list" class="hist-list"></div>
+        </div>
+
+        <!-- Reviewed Test Cases History -->
+        <div class="hist-panel">
+            <div class="hist-panel-header">
+                <h2>🔍 Reviewed Test Cases History <span id="hist-rev-count" class="hist-count-badge"></span></h2>
+                <button class="hist-clear-btn" id="hist-clear-rev" aria-label="Clear reviewed history">🗑 Clear All</button>
+            </div>
+            <div id="hist-rev-list" class="hist-list"></div>
+        </div>
+
+        <!-- Test Case Summary History -->
+        <div class="hist-panel">
+            <div class="hist-panel-header">
+                <h2>📋 Test Case Summary History <span id="hist-sum-count" class="hist-count-badge"></span></h2>
+                <button class="hist-clear-btn" id="hist-clear-sum" aria-label="Clear summary history">🗑 Clear All</button>
+            </div>
+            <div id="hist-sum-list" class="hist-list"></div>
+        </div>
+
+    </div><!-- /.hist-wrap -->
+</div><!-- /#section-history -->
+
+<!-- ── History Detail Modal ── -->
+<div id="hist-modal-overlay" class="hist-modal-overlay" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="hist-modal-title">
+    <div class="hist-modal">
+        <div class="hist-modal-header">
+            <h2 id="hist-modal-title"></h2>
+            <button id="hist-modal-close" class="hist-modal-close" aria-label="Close">✕</button>
+        </div>
+        <div id="hist-modal-body" class="hist-modal-body"></div>
+    </div>
+</div>
+
+<script src="test-case-generator.js"></script>
+<script src="test-case-summary.js"></script>
+<script src="history.js"></script>
+<script>
+(function () {
+    // ── Tab Navigation ──
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            tabs.forEach(function (t) {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+                document.getElementById(t.getAttribute('aria-controls')).hidden = true;
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+            document.getElementById(btn.getAttribute('aria-controls')).hidden = false;
+            if (btn.getAttribute('aria-controls') === 'section-history') {
+                window.dispatchEvent(new CustomEvent('tca-history-updated'));
+            }
+        });
+    });
+
+    // ── Theme Toggle ──
+    var toggle = document.getElementById('theme-toggle');
+    var iframe = document.getElementById('review-frame');
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        var icon = toggle.querySelector('.toggle-icon');
+        if (theme === 'dark') {
+            icon.textContent = '☀️';
+        } else {
+            icon.textContent = '🌙';
+        }
+        try { iframe.contentWindow.postMessage({ type: 'theme-change', theme: theme }, window.location.origin); } catch (e) {}
+    }
+
+    // Sync toggle label with stored theme on load
+    applyTheme(localStorage.getItem('theme') || 'light');
+
+    toggle.addEventListener('click', function () {
+        var current = document.documentElement.getAttribute('data-theme');
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    // Send theme to iframe once it has loaded
+    iframe.addEventListener('load', function () {
+        var current = document.documentElement.getAttribute('data-theme');
+        try { iframe.contentWindow.postMessage({ type: 'theme-change', theme: current }, window.location.origin); } catch (e) {}
+    });
+}());
+</script>
+
+</body>
+</html>

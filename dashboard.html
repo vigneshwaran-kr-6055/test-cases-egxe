@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Dashboard</title>
+    <link rel="stylesheet" href="styles.css"> <!-- Link to styles -->
+    <script src="script.js" defer></script> <!-- Link to script -->
+</head>
+<body>
+    <header>
+        <h1>Dashboard</h1>
+        <nav>
+            <ul>
+                <li><a href="#workboard">WorkBoard</a></li>
+                <li><a href="#windows">Windows</a></li>
+                <li><a href="#mac">Mac</a></li>
+                <li><a href="#tasks">Other Tasks</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section id="summary">
+            <div class="card">
+                <h2>WorkBoard Summary</h2>
+                <p>Summary details here.</p>
+            </div>
+            <div class="card">
+                <h2>Windows Summary</h2>
+                <p>Summary details here.</p>
+            </div>
+            <div class="card">
+                <h2>Mac Summary</h2>
+                <p>Summary details here.</p>
+            </div>
+            <div class="card">
+                <h2>Other Tasks Summary</h2>
+                <p>Summary details here.</p>
+            </div>
+        </section>
+        
+        <section id="workboard">
+            <h2>WorkBoard Module</h2>
+            <ul>
+                <li><a href="#" data-modal="modal1">Task 1</a></li>
+                <li><a href="#" data-modal="modal2">Task 2</a></li>
+            </ul>
+        </section>
+
+        <section id="windows">
+            <h2>Windows Module</h2>
+            <ul>
+                <li><a href="#" data-modal="modal3">Setting Up</a></li>
+                <li><a href="#" data-modal="modal4">Troubleshooting</a></li>
+            </ul>
+        </section>
+
+        <section id="mac">
+            <h2>Mac Module</h2>
+            <ul>
+                <li><a href="#" data-modal="modal5">Installation</a></li>
+                <li><a href="#" data-modal="modal6">Updates</a></li>
+            </ul>
+        </section>
+
+        <section id="tasks">
+            <h2>Other Tasks</h2>
+            <ul>
+                <li><a href="#" data-modal="modal7">Task Management</a></li>
+                <li><a href="#" data-modal="modal8">Performance Review</a></li>
+            </ul>
+        </section>
+
+        <!-- Modal Structure -->
+        <div id="modal1" class="modal">Modal Content for Task 1</div>
+        <div id="modal2" class="modal">Modal Content for Task 2</div>
+        <div id="modal3" class="modal">Modal Content for Setting Up</div>
+        <div id="modal4" class="modal">Modal Content for Troubleshooting</div>
+        <div id="modal5" class="modal">Modal Content for Installation</div>
+        <div id="modal6" class="modal">Modal Content for Updates</div>
+        <div id="modal7" class="modal">Modal Content for Task Management</div>
+        <div id="modal8" class="modal">Modal Content for Performance Review</div>
+
+    </main>
+</body>
+</html>
