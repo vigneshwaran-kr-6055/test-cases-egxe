@@ -1,0 +1,4 @@
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://*.zoho.com https://*.zoho.eu https://*.zoho.in https://*.zoho.com.au https://*.zoho.jp https://*.zohocloud.ca"
