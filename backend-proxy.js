@@ -20,6 +20,7 @@ const FRAME_ANCESTORS = [
 
 app.use((req, res, next) => {
     res.setHeader('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS}`);
+    res.removeHeader('X-Frame-Options');
     next();
 });
 
