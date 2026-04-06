@@ -1,0 +1,5 @@
+# Allow embedding in Zoho CRM web tabs and other Zoho products
+<IfModule mod_headers.c>
+    Header always set Content-Security-Policy "frame-ancestors 'self' https://*.zoho.com https://*.zoho.eu https://*.zoho.in https://*.zoho.com.au https://*.zoho.jp https://*.zohocloud.ca"
+    Header always unset X-Frame-Options
+</IfModule>
