@@ -863,6 +863,52 @@ function esc(str) {
         .replace(/"/g, '&quot;');
 }
 
+/**
+ * Mask personally identifiable information (PII) in a string value.
+ * Detected patterns are replaced with bracketed labels so that no raw
+ * personal data is retained in memory, displayed in the UI, or persisted
+ * to localStorage history.  Non-string values are coerced to string before
+ * scanning so that numeric card/SSN values stored in XLSX cells are covered.
+ *
+ * Patterns covered:
+ *   - Email addresses          → [EMAIL]
+ *   - Credit / debit card nos. → [CARD]
+ *   - US SSNs (000-00-0000)    → [SSN]
+ *   - Phone numbers            → [PHONE]
+ *   - IPv4 addresses           → [IP]
+ *
+ * @param {string} value  Text to mask.
+ * @returns {string}      The text with PII replaced.
+ */
+function maskPii(value) {
+    if (value === null || value === undefined) return value;
+    var v = typeof value === 'string' ? value : String(value);
+    // Email addresses (before other patterns to avoid partial matches)
+    v = v.replace(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g, '[EMAIL]');
+    // Credit / debit card numbers – standard 4-group separator format first,
+    // then any run of 13-19 consecutive digits (unseparated)
+    v = v.replace(/\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,7}\b/g, '[CARD]');
+    v = v.replace(/\b\d{13,19}\b/g, '[CARD]');
+    // US Social Security Numbers (000-00-0000 or 000 00 0000)
+    v = v.replace(/\b\d{3}[-\s]\d{2}[-\s]\d{4}\b/g, '[SSN]');
+    // Phone numbers – N. American (000) 000-0000 / 000-000-0000 and international +XX ...
+    v = v.replace(/(?:\+?(?:\d{1,3})[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g, '[PHONE]');
+    // IPv4 addresses
+    v = v.replace(/\b(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}\b/g, '[IP]');
+    return v;
+}
+
+/**
+ * Apply maskPii to the text field of every use-case object in an array.
+ * @param {Array<{ref:string,text:string}>} useCases
+ * @returns {Array<{ref:string,text:string}>}
+ */
+function maskUseCasesPii(useCases) {
+    return useCases.map(function (uc) {
+        return { ref: uc.ref, text: maskPii(uc.text) };
+    });
+}
+
 /* ─────────────────────────────────────────────
    Core generator
 ───────────────────────────────────────────── */
@@ -1260,7 +1306,7 @@ async function extractPdfText(arrayBuffer) {
             const reader = new FileReader();
             reader.onload = e => {
                 try {
-                    parsedUseCases = parseTxt(e.target.result);
+                    parsedUseCases = maskUseCasesPii(parseTxt(e.target.result));
                     if (!parsedUseCases.length) {
                         setStatus('⚠ No use cases found in the file. Ensure the file has content.', 'error');
                         btnGenerate.disabled = true;
@@ -1279,7 +1325,7 @@ async function extractPdfText(arrayBuffer) {
             const reader = new FileReader();
             reader.onload = e => {
                 try {
-                    parsedUseCases = parseCsvToUseCases(e.target.result);
+                    parsedUseCases = maskUseCasesPii(parseCsvToUseCases(e.target.result));
                     if (!parsedUseCases.length) {
                         setStatus('⚠ No use cases found in the CSV.', 'error');
                         btnGenerate.disabled = true;
@@ -1298,7 +1344,7 @@ async function extractPdfText(arrayBuffer) {
             const reader = new FileReader();
             reader.onload = e => {
                 extractDocxText(e.target.result).then(text => {
-                    parsedUseCases = parsePlainText(text);
+                    parsedUseCases = maskUseCasesPii(parsePlainText(text));
                     if (!parsedUseCases.length) {
                         setStatus('⚠ No use cases found in the DOCX file.', 'error');
                         btnGenerate.disabled = true;
@@ -1317,7 +1363,7 @@ async function extractPdfText(arrayBuffer) {
             const reader = new FileReader();
             reader.onload = e => {
                 extractPdfText(e.target.result).then(text => {
-                    parsedUseCases = parsePlainText(text);
+                    parsedUseCases = maskUseCasesPii(parsePlainText(text));
                     if (!parsedUseCases.length) {
                         setStatus('⚠ No use cases found in the PDF.', 'error');
                         btnGenerate.disabled = true;
@@ -1354,7 +1400,7 @@ async function extractPdfText(arrayBuffer) {
                     }
                 }
                 return readXlsxFile(file, { sheet: targetSheet }).then(rawRows => {
-                    parsedUseCases = parseXlsxToUseCases(rawRows);
+                    parsedUseCases = maskUseCasesPii(parseXlsxToUseCases(rawRows));
                     if (!parsedUseCases.length) {
                         setStatus('⚠ No use cases found in the spreadsheet' + sheetNote + '.', 'error');
                         btnGenerate.disabled = true;
