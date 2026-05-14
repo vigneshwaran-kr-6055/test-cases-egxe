@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "node backend-proxy.js"
+    "start:local": "node backend-proxy.js"
   },
   "dependencies": {
     "axios": "^1.13.5",
