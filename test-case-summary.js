@@ -46,6 +46,43 @@ function detectSumColumns(headers) {
 /* ─────────────────────────────────────────────
    File parsing helpers (XLSX + CSV)
 ───────────────────────────────────────────── */
+
+/**
+ * Mask personally identifiable information (PII) in a cell value.
+ * Detected patterns are replaced with bracketed labels so that no raw
+ * personal data is retained in memory, displayed in the UI, or persisted
+ * to localStorage history.  Non-string values are coerced to string before
+ * scanning so that numeric card/SSN values stored in XLSX cells are covered.
+ *
+ * Patterns covered:
+ *   - Email addresses          → [EMAIL]
+ *   - Credit / debit card nos. → [CARD]
+ *   - US SSNs (000-00-0000)    → [SSN]
+ *   - Phone numbers            → [PHONE]
+ *   - IPv4 addresses           → [IP]
+ *
+ * @param {*} value  Cell value from the uploaded spreadsheet.
+ * @returns {string|null|undefined}  The value with PII replaced, or null/undefined
+ *                                   if that was the original value.
+ */
+function maskPii(value) {
+    if (value === null || value === undefined) return value;
+    var v = typeof value === 'string' ? value : String(value);
+    // Email addresses (before other patterns to avoid partial matches)
+    v = v.replace(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g, '[EMAIL]');
+    // Credit / debit card numbers – standard 4-group separator format first,
+    // then any run of 13-19 consecutive digits (unseparated)
+    v = v.replace(/\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,7}\b/g, '[CARD]');
+    v = v.replace(/\b\d{13,19}\b/g, '[CARD]');
+    // US Social Security Numbers (000-00-0000 or 000 00 0000)
+    v = v.replace(/\b\d{3}[-\s]\d{2}[-\s]\d{4}\b/g, '[SSN]');
+    // Phone numbers – N. American (000) 000-0000 / 000-000-0000 and international +XX ...
+    v = v.replace(/(?:\+?(?:\d{1,3})[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g, '[PHONE]');
+    // IPv4 addresses
+    v = v.replace(/\b(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}\b/g, '[IP]');
+    return v;
+}
+
 function sumRowsToObjects(rawRows) {
     if (!rawRows || rawRows.length < 2) return [];
     var headers = rawRows[0].map(function (h) {
@@ -54,7 +91,8 @@ function sumRowsToObjects(rawRows) {
     return rawRows.slice(1).map(function (row) {
         return Object.fromEntries(
             headers.map(function (h, i) {
-                return [h, row[i] !== null && row[i] !== undefined ? row[i] : ''];
+                var raw = row[i] !== null && row[i] !== undefined ? row[i] : '';
+                return [h, maskPii(raw)];
             })
         );
     });
@@ -82,7 +120,7 @@ function sumParseCSV(text) {
         var vals = splitLine(line);
         return Object.fromEntries(
             headers.map(function (h, i) {
-                return [h, vals[i] !== null && vals[i] !== undefined ? vals[i] : ''];
+                return [h, maskPii(vals[i] !== null && vals[i] !== undefined ? vals[i] : '')];
             })
         );
     });

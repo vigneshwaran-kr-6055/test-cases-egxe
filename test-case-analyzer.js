@@ -558,6 +558,42 @@ function escapeHtml(str) {
 }
 
 /**
+ * Mask personally identifiable information (PII) in a cell value.
+ * Detected patterns are replaced with bracketed labels so that no raw
+ * personal data is retained in memory, displayed in the UI, or persisted
+ * to localStorage history.  Non-string values are coerced to string before
+ * scanning so that numeric card/SSN values stored in XLSX cells are covered.
+ *
+ * Patterns covered:
+ *   - Email addresses          → [EMAIL]
+ *   - Credit / debit card nos. → [CARD]
+ *   - US SSNs (000-00-0000)    → [SSN]
+ *   - Phone numbers            → [PHONE]
+ *   - IPv4 addresses           → [IP]
+ *
+ * @param {*} value  Cell value from the uploaded spreadsheet.
+ * @returns {string|null|undefined}  The value with PII replaced, or null/undefined
+ *                                   if that was the original value.
+ */
+function maskPii(value) {
+    if (value === null || value === undefined) return value;
+    var v = typeof value === 'string' ? value : String(value);
+    // Email addresses (before other patterns to avoid partial matches)
+    v = v.replace(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g, '[EMAIL]');
+    // Credit / debit card numbers – standard 4-group separator format first,
+    // then any run of 13-19 consecutive digits (unseparated)
+    v = v.replace(/\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,7}\b/g, '[CARD]');
+    v = v.replace(/\b\d{13,19}\b/g, '[CARD]');
+    // US Social Security Numbers (000-00-0000 or 000 00 0000)
+    v = v.replace(/\b\d{3}[-\s]\d{2}[-\s]\d{4}\b/g, '[SSN]');
+    // Phone numbers – N. American (000) 000-0000 / 000-000-0000 and international +XX ...
+    v = v.replace(/(?:\+?(?:\d{1,3})[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g, '[PHONE]');
+    // IPv4 addresses
+    v = v.replace(/\b(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}\b/g, '[IP]');
+    return v;
+}
+
+/**
  * Generate a brief human-readable paragraph summarising what the
  * uploaded test suite is testing, based on the test-case titles.
  */
@@ -974,7 +1010,10 @@ function analyzeTestCases(rows) {
         if (!rawRows || rawRows.length < 2) return [];
         const headers = rawRows[0].map(h => (h !== null && h !== undefined ? String(h) : ''));
         return rawRows.slice(1).map(row =>
-            Object.fromEntries(headers.map((h, i) => [h, row[i] !== null && row[i] !== undefined ? row[i] : '']))
+            Object.fromEntries(headers.map((h, i) => {
+                const raw = row[i] !== null && row[i] !== undefined ? row[i] : '';
+                return [h, maskPii(raw)];
+            }))
         );
     }
 
@@ -1005,7 +1044,7 @@ function analyzeTestCases(rows) {
         const headers = splitLine(lines[0]);
         return lines.slice(1).map(line => {
             const vals = splitLine(line);
-            return Object.fromEntries(headers.map((h, i) => [h, vals[i] !== null && vals[i] !== undefined ? vals[i] : '']));
+            return Object.fromEntries(headers.map((h, i) => [h, maskPii(vals[i] !== null && vals[i] !== undefined ? vals[i] : '')]));
         });
     }
 
