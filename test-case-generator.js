@@ -112,17 +112,28 @@ const TEMPLATES = [
         id: 'happy-path',
         technique: 'Positive Testing',
         generate(ucText, ucRef, feature, ctx) {
-            const { action, entity, actor, module } = ctx || {};
+            const { action, entity, actor, module, fields, acceptanceClauses } = ctx || {};
+            const descLines = [
+                `Verify that the ${feature} completes successfully end-to-end.`,
+                fields && fields.length
+                    ? `All required fields are filled with valid data: ${fields.slice(0, 5).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')}.`
+                    : 'All required input fields are filled with valid data.',
+                `The ${actor || 'user'} has the appropriate permissions to perform the action.`,
+            ];
+            if (acceptanceClauses && acceptanceClauses.length) {
+                acceptanceClauses.slice(0, 2).forEach(clause => {
+                    descLines.push(`Acceptance criterion: the system ${clause}.`);
+                });
+            }
+            const expectedResult = acceptanceClauses && acceptanceClauses.length
+                ? `The ${feature} completes successfully. The system ${acceptanceClauses[0]}. An appropriate success message or state change is confirmed.`
+                : `The ${feature} completes successfully and the system confirms the action with an appropriate success message or state change.`;
             return [{
                 ucRef,
                 title: `Verify successful ${feature} with valid inputs`,
-                description: [
-                    `Verify that the ${feature} completes successfully end-to-end.`,
-                    'All required input fields are filled with valid data.',
-                    `The ${actor || 'user'} has the appropriate permissions to perform the action.`,
-                ],
-                steps: buildActionSpecificSteps(action, entity, module, feature, actor),
-                expectedResult: `The ${feature} completes successfully and the system confirms the action with an appropriate success message or state change.`,
+                description: descLines,
+                steps: buildActionSpecificSteps(action, entity, module, feature, actor, fields),
+                expectedResult,
                 severity: detectSeverity(ucText),
                 type: 'functional',
             }];
@@ -134,7 +145,7 @@ const TEMPLATES = [
         id: 'negative-path',
         technique: 'Negative Testing / Error Guessing',
         generate(ucText, ucRef, feature, ctx) {
-            const { action, entity, actor, module } = ctx || {};
+            const { action, entity, actor, module, fields, constraints } = ctx || {};
             return [{
                 ucRef,
                 title: `Verify error handling for invalid inputs in ${feature}`,
@@ -142,8 +153,11 @@ const TEMPLATES = [
                     `Ensure the system handles invalid or missing inputs gracefully for ${feature}.`,
                     'The system must not proceed or corrupt data on bad input.',
                     'A clear, user-friendly error message must be displayed.',
+                    ...(constraints && constraints.length
+                        ? [`Known constraints to violate: ${constraints.join('; ')}.`]
+                        : []),
                 ],
-                steps: buildNegativePathSteps(action, entity, module, feature, actor),
+                steps: buildNegativePathSteps(action, entity, module, feature, actor, fields, constraints),
                 expectedResult: `The system displays a clear, descriptive error message, highlights the problematic field(s), and does not process or save any data.`,
                 severity: 'major',
                 type: 'functional',
@@ -156,24 +170,30 @@ const TEMPLATES = [
         id: 'boundary',
         technique: 'Boundary Value Analysis (BVA)',
         condition: text => BOUNDARY_RE.test(text),
-        generate(ucText, ucRef, feature) {
+        generate(ucText, ucRef, feature, ctx) {
+            const { fields, constraints } = ctx || {};
+            const targetField = fields && fields.length ? fields[0] : 'the relevant field';
+            const constraintNote = constraints && constraints.length
+                ? `Use case specifies: ${constraints.join('; ')}.`
+                : null;
             return [{
                 ucRef,
                 title: `Verify boundary values for ${feature}`,
                 description: [
                     `Validate correct behaviour at the defined limits for ${feature}.`,
-                    'Test at exactly the minimum allowed value.',
-                    'Test at exactly the maximum allowed value.',
-                    'Test with a value just beyond the maximum.',
-                ],
+                    constraintNote || 'Test at exactly the minimum and maximum allowed values.',
+                    'Test with a value just beyond the maximum to confirm rejection.',
+                ].filter(Boolean),
                 steps: [
-                    'Identify the minimum and maximum allowed values for the relevant field(s).',
-                    'Enter the minimum valid value and submit — note the result.',
-                    'Enter the maximum valid value and submit — note the result.',
-                    'Enter one unit above the maximum and attempt to submit — note the result.',
-                    'Enter one unit below the minimum and attempt to submit — note the result.',
+                    `Identify the minimum and maximum allowed values for ${targetField}.`,
+                    ...(constraintNote ? [`Noted constraints from use case: ${constraintNote}`] : []),
+                    `Enter the minimum valid value for ${targetField} and submit — verify it is accepted.`,
+                    `Enter the maximum valid value for ${targetField} and submit — verify it is accepted.`,
+                    `Enter one unit above the maximum for ${targetField} and attempt to submit — verify rejection with a clear limit error.`,
+                    `Enter one unit below the minimum for ${targetField} and attempt to submit — verify rejection with a clear limit error.`,
+                    `Test with an empty or null value for ${targetField} — verify the system handles it gracefully without crashing.`,
                 ],
-                expectedResult: `Values within range are accepted; values outside the range are rejected with a clear validation message indicating the allowed limits.`,
+                expectedResult: `Values within range are accepted; values outside the range are rejected with a clear validation message${constraints && constraints.length ? ` respecting the stated constraint (${constraints[0]})` : ' indicating the allowed limits'}.`,
                 severity: 'major',
                 type: 'functional',
             }];
@@ -365,27 +385,30 @@ const TEMPLATES = [
         technique: 'Data Integrity Testing',
         condition: text => /\b(save|create|add|update|edit|modify|submit|store|persist|record)\b/i.test(text),
         generate(ucText, ucRef, feature, ctx) {
-            const { entity, actor } = ctx || {};
+            const { entity, actor, fields } = ctx || {};
             const subject = entity || feature || 'data';
             const actorLabel = actor || 'user';
+            const fieldList = fields && fields.length
+                ? fields.slice(0, 6).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+                : 'all fields';
             return [{
                 ucRef,
                 title: `Verify data integrity and persistence for ${feature}`,
                 description: [
                     `Verify that ${feature} stores data accurately and that the stored data is retrievable, consistent, and not corrupted across sessions.`,
                     'Saved data must survive page refreshes and user re-logins.',
-                    'All field values must be stored without truncation, encoding errors, or type mismatches.',
+                    `All field values (${fieldList}) must be stored without truncation, encoding errors, or type mismatches.`,
                 ],
                 steps: [
                     `Log in as a ${actorLabel} and navigate to the ${feature} screen.`,
-                    `Create or update a ${subject} record with specific, uniquely identifiable test values for every field.`,
+                    `Create or update a ${subject} record with specific, uniquely identifiable test values for: ${fieldList}.`,
                     'Save / submit the record and note the confirmation response.',
                     'Refresh the browser page and verify the saved values are still present and unchanged.',
                     'Log out and log back in; re-open the same record and verify all field values persist correctly.',
                     'Verify that long-text, special characters, and numeric fields are stored without truncation or encoding issues.',
                     'If the feature supports concurrent editing, verify that simultaneous saves do not cause data loss or overwrite conflicts without warning.',
                 ],
-                expectedResult: `All field values are saved accurately, persist across page refreshes and user sessions, are free from truncation or encoding corruption, and concurrent edits are handled gracefully without silent data loss.`,
+                expectedResult: `All field values (${fieldList}) are saved accurately, persist across page refreshes and user sessions, are free from truncation or encoding corruption, and concurrent edits are handled gracefully without silent data loss.`,
                 severity: 'critical',
                 type: 'functional',
             }];
@@ -452,6 +475,39 @@ const TEMPLATES = [
                 severity: 'critical',
                 type: 'functional',
             }];
+        },
+    },
+
+    // 13. Acceptance-criteria driven — generated when specific "must/should/shall" conditions are found
+    {
+        id: 'acceptance-criteria',
+        technique: 'Specification-Based Testing',
+        condition: (text, ctx) => !!(ctx && ctx.acceptanceClauses && ctx.acceptanceClauses.length),
+        generate(ucText, ucRef, feature, ctx) {
+            const { acceptanceClauses = [], actor = 'user', entity, module } = ctx || {};
+            if (!acceptanceClauses.length) return [];
+            const subject   = entity || feature || 'item';
+            const navTarget = module ? `the ${module} section` : `the ${feature} screen`;
+
+            return acceptanceClauses.slice(0, 3).map(clause => ({
+                ucRef,
+                title: `Verify acceptance criterion: ${truncateWords(clause, 65)}`,
+                description: [
+                    `Directly validates the stated acceptance criterion from the use case: "${clause}".`,
+                    `This test case ensures ${feature} meets its documented specification.`,
+                ],
+                steps: [
+                    `Log in as a ${actor} with the required permissions.`,
+                    `Navigate to ${navTarget}.`,
+                    `Set up the pre-conditions needed to trigger the scenario where: ${clause}.`,
+                    `Perform the action or event that should cause the system to satisfy the criterion.`,
+                    `Observe the system response and verify the criterion is met: the system ${clause}.`,
+                    `Verify the outcome is correctly reflected in the UI and in any relevant data store or notification.`,
+                ],
+                expectedResult: `The system ${clause}. The behaviour fully satisfies the stated acceptance criterion for ${feature}.`,
+                severity: detectSeverity(ucText),
+                type: 'functional',
+            }));
         },
     },
 ];
@@ -579,7 +635,56 @@ function extractUseCaseContext(text) {
         if (moduleMatch) { module = moduleMatch[1].trim(); break; }
     }
 
-    return { action, entity, actor, module };
+    // ── Named fields (specific data fields mentioned in the use case) ──
+    const fields = [];
+    const COMMON_FIELD_NAMES = [
+        // Multi-word first so they match before their single-word components
+        'first name', 'last name', 'full name', 'date of birth', 'start date',
+        'end date', 'due date', 'expiry date', 'postal code', 'zip code',
+        'card number', 'account number', 'sort code', 'order number',
+        'tracking number', 'serial number',
+        // Single-word fields
+        'name', 'email', 'password', 'username', 'phone', 'mobile', 'address',
+        'title', 'description', 'date', 'amount', 'price', 'quantity', 'status',
+        'category', 'type', 'code', 'number', 'message', 'subject', 'comment',
+        'role', 'sku', 'barcode', 'url', 'attachment', 'image', 'note',
+        'reason', 'priority', 'tag', 'label', 'city', 'state', 'country',
+        'salary', 'budget', 'invoice', 'rating', 'score', 'department',
+        'permission', 'expiry', 'dob', 'bio', 'company', 'website',
+    ];
+    COMMON_FIELD_NAMES.forEach(f => {
+        // Use word-boundary regex to avoid substring false positives
+        // (e.g. 'date' inside 'validate', 'number' inside 'phone number')
+        const fieldRe = new RegExp(`\\b${f.replace(/\s+/g, '\\s+')}\\b`, 'i');
+        if (fieldRe.test(text) && !fields.includes(f)) fields.push(f);
+    });
+
+    // ── Numeric constraints (min / max values stated in the use case) ──
+    const constraints = [];
+    const constraintPatterns = [
+        /(?:at\s+least|minimum\s+of?|min(?:imum)?)\s+(\d+)\s*(characters?|chars?|digits?|letters?|items?|files?)\b/gi,
+        /(?:at\s+most|maximum\s+of?|max(?:imum)?|no\s+more\s+than|up\s+to)\s+(\d+)\s*(characters?|chars?|digits?|items?|records?|files?)\b/gi,
+        /(?:exactly|must\s+be)\s+(\d+)\s*(characters?|digits?|letters?)\b/gi,
+        /\b(\d+)\s*(characters?|chars?|digits?)\s+(?:long|limit|max|min)\b/gi,
+    ];
+    constraintPatterns.forEach(re => {
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const c = m[0].replace(/\s+/g, ' ').trim();
+            if (!constraints.includes(c)) constraints.push(c);
+        }
+    });
+
+    // ── Acceptance clauses ("must / should / shall" conditions in the use case) ──
+    const acceptanceClauses = [];
+    const acRe = /(?:(?:the\s+)?(?:system|application|app)\s+)?(?:must|should|shall)\s+([^.;!\n]{15,120})/gi;
+    let acMatch;
+    while ((acMatch = acRe.exec(text)) !== null) {
+        const clause = acMatch[1].replace(/\s+/g, ' ').trim();
+        if (clause && !acceptanceClauses.includes(clause)) acceptanceClauses.push(clause);
+    }
+
+    return { action, entity, actor, module, fields, constraints, acceptanceClauses };
 }
 
 /**
@@ -592,11 +697,14 @@ function extractUseCaseContext(text) {
  * @param {string} actor   - Role performing the action (e.g. "admin")
  * @returns {string[]}
  */
-function buildActionSpecificSteps(action, entity, module, feature, actor) {
+function buildActionSpecificSteps(action, entity, module, feature, actor, fields) {
     const subject    = entity  || feature || 'item';
     const navTarget  = module  ? `the ${module} section` : `the ${subject} screen`;
     const actorLabel = actor   || 'user';
     const a          = (action || '').toLowerCase();
+    const fieldSpec  = fields && fields.length
+        ? fields.slice(0, 5).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+        : null;
 
     if (/^(login|log in|sign in)$/.test(a)) {
         return [
@@ -629,7 +737,9 @@ function buildActionSpecificSteps(action, entity, module, feature, actor) {
             `Log in as a ${actorLabel} with the required permissions.`,
             `Navigate to ${navTarget}.`,
             `Click the 'New' / 'Create ${subject}' button or equivalent control.`,
-            `Fill in all required fields for the ${subject} with valid, correctly formatted data.`,
+            fieldSpec
+                ? `Fill in the required fields with valid data: ${fieldSpec}.`
+                : `Fill in all required fields for the ${subject} with valid, correctly formatted data.`,
             `Submit / save the ${subject}.`,
             `Verify the ${subject} is created and appears in the list with the correct details.`,
         ];
@@ -640,7 +750,9 @@ function buildActionSpecificSteps(action, entity, module, feature, actor) {
             `Navigate to ${navTarget}.`,
             `Locate and select an existing ${subject}.`,
             `Click 'Edit' or equivalent to enter edit mode.`,
-            `Update the required fields with valid new data.`,
+            fieldSpec
+                ? `Update the following fields with valid new values: ${fieldSpec}.`
+                : `Update the required fields with valid new data.`,
             `Save the changes.`,
             `Verify the ${subject} displays the updated information correctly.`,
         ];
@@ -762,10 +874,14 @@ function buildActionSpecificSteps(action, entity, module, feature, actor) {
  * @param {string} actor
  * @returns {string[]}
  */
-function buildNegativePathSteps(action, entity, module, feature, actor) {
+function buildNegativePathSteps(action, entity, module, feature, actor, fields, constraints) {
     const subject   = entity || feature || 'item';
     const navTarget = module ? `the ${module} section` : `the ${subject} screen`;
     const a         = (action || '').toLowerCase();
+    const firstField = fields && fields.length ? `'${fields[0]}'` : 'a required field';
+    const constraintNote = constraints && constraints.length
+        ? `Attempt to violate the use-case constraint (${constraints[0]}) — verify the system rejects the input with a descriptive error.`
+        : null;
 
     if (/^(login|log in|sign in)$/.test(a)) {
         return [
@@ -786,17 +902,19 @@ function buildNegativePathSteps(action, entity, module, feature, actor) {
     if (/^(create|add)$/.test(a)) {
         return [
             `Navigate to ${navTarget}.`,
-            `Attempt to create a ${subject} with all required fields left empty — verify validation errors are shown.`,
-            `Enter invalid data formats (e.g., text in a numeric field, invalid date format) — verify field-level errors.`,
-            `Attempt to create a duplicate ${subject} (if uniqueness is enforced) — verify a duplicate entry error.`,
+            `Attempt to create a ${subject} with all required fields left empty — verify validation errors are shown for each required field.`,
+            `Enter invalid data formats (e.g., text in a numeric field, invalid date) in ${firstField} — verify a specific field-level error appears.`,
+            `Attempt to create a duplicate ${subject} (if uniqueness is enforced) — verify a 'duplicate entry' error is shown.`,
+            ...(constraintNote ? [constraintNote] : []),
         ];
     }
     if (/^(update|edit|modify|change)$/.test(a)) {
         return [
             `Navigate to ${navTarget} and open an existing ${subject} for editing.`,
-            `Clear all required fields and attempt to save — verify validation errors are shown.`,
-            `Enter out-of-range or invalid-format data in the fields — verify rejection with clear messages.`,
-            `Attempt the update without sufficient permissions — verify access is denied.`,
+            `Clear ${firstField} (a required field) and attempt to save — verify a validation error is shown.`,
+            `Enter out-of-range or invalid-format data in ${firstField} — verify rejection with a clear, specific message.`,
+            `Attempt the update without sufficient permissions — verify access is denied with an appropriate message.`,
+            ...(constraintNote ? [constraintNote] : []),
         ];
     }
     if (/^(delete|remove)$/.test(a)) {
@@ -811,16 +929,16 @@ function buildNegativePathSteps(action, entity, module, feature, actor) {
         return [
             `Navigate to ${navTarget}.`,
             `Attempt to upload a file with an unsupported format — verify rejection with a clear error.`,
-            `Attempt to upload a file exceeding the allowed size limit — verify the size limit error.`,
+            ...(constraintNote ? [constraintNote] : [`Attempt to upload a file exceeding the allowed size limit — verify the size limit error.`]),
             `Upload a malformed or corrupted file — verify the system handles it gracefully and displays an error.`,
         ];
     }
     if (/^(search|find|filter)$/.test(a)) {
         return [
             `Navigate to ${navTarget}.`,
-            `Submit a search with an empty query — verify appropriate behaviour (all results or helpful prompt).`,
-            `Enter special characters or injection strings in the search field — verify input is sanitised.`,
-            `Apply filter criteria that match no records — verify a clear 'no results found' message is shown.`,
+            `Submit a search with an empty query — verify appropriate behaviour (all results or a helpful prompt).`,
+            `Enter special characters or injection strings in the search field — verify input is sanitised and no errors occur.`,
+            `Apply filter criteria that match no ${subject} records — verify a clear 'no results found' message is shown.`,
         ];
     }
     if (/^(pay|purchase|checkout|check out)$/.test(a)) {
@@ -835,9 +953,10 @@ function buildNegativePathSteps(action, entity, module, feature, actor) {
     // Generic fallback
     return [
         `Navigate to ${navTarget}.`,
-        `Leave required fields empty or enter invalid/malformed data.`,
+        `Leave ${firstField} empty or enter invalid/malformed data.`,
         `Attempt to submit or perform the action.`,
         `Verify the system displays clear, descriptive validation errors and does not process invalid data.`,
+        ...(constraintNote ? [constraintNote] : []),
     ];
 }
 
@@ -930,7 +1049,7 @@ function generateTestCases(useCases) {
         const ctx     = extractUseCaseContext(text);
 
         TEMPLATES.forEach(tpl => {
-            if (tpl.condition && !tpl.condition(text)) return;
+            if (tpl.condition && !tpl.condition(text, ctx)) return;
             const produced = tpl.generate(text, ref, feature, ctx);
             produced.forEach(tc => {
                 allTCs.push({ id: `TC-${String(tcIndex++).padStart(3, '0')}`, technique: tpl.technique || DEFAULT_TECHNIQUE, ...tc });
