@@ -95,6 +95,25 @@ const BOUNDARY_RE = /\b(limit|max|min|maximum|minimum|length|count|number|charac
 /** Default ISTQB technique label used when a template does not specify one. */
 const DEFAULT_TECHNIQUE = 'Functional Testing';
 
+/**
+ * Escape all regex special characters in a string so it can be safely
+ * embedded inside a RegExp constructor.
+ * @param {string} s
+ * @returns {string}
+ */
+function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Capitalise the first character of a string.
+ * @param {string} s
+ * @returns {string}
+ */
+function capitalizeFirst(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
 /* ─────────────────────────────────────────────
    Test case template generators
 ───────────────────────────────────────────── */
@@ -116,7 +135,7 @@ const TEMPLATES = [
             const descLines = [
                 `Verify that the ${feature} completes successfully end-to-end.`,
                 fields && fields.length
-                    ? `All required fields are filled with valid data: ${fields.slice(0, 5).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')}.`
+                    ? `All required fields are filled with valid data: ${fields.slice(0, 5).map(capitalizeFirst).join(', ')}.`
                     : 'All required input fields are filled with valid data.',
                 `The ${actor || 'user'} has the appropriate permissions to perform the action.`,
             ];
@@ -389,7 +408,7 @@ const TEMPLATES = [
             const subject = entity || feature || 'data';
             const actorLabel = actor || 'user';
             const fieldList = fields && fields.length
-                ? fields.slice(0, 6).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+                ? fields.slice(0, 6).map(capitalizeFirst).join(', ')
                 : 'all fields';
             return [{
                 ucRef,
@@ -655,7 +674,7 @@ function extractUseCaseContext(text) {
     COMMON_FIELD_NAMES.forEach(f => {
         // Use word-boundary regex to avoid substring false positives
         // (e.g. 'date' inside 'validate', 'number' inside 'phone number')
-        const fieldRe = new RegExp(`\\b${f.replace(/\s+/g, '\\s+')}\\b`, 'i');
+        const fieldRe = new RegExp(`\\b${escapeRegex(f).replace(/\s+/g, '\\s+')}\\b`, 'i');
         if (fieldRe.test(text) && !fields.includes(f)) fields.push(f);
     });
 
@@ -676,12 +695,16 @@ function extractUseCaseContext(text) {
     });
 
     // ── Acceptance clauses ("must / should / shall" conditions in the use case) ──
+    // Captures the predicate up to the next sentence boundary or end of line.
+    // The minimum of 10 chars filters out very short fragments (e.g. bare "must be").
     const acceptanceClauses = [];
-    const acRe = /(?:(?:the\s+)?(?:system|application|app)\s+)?(?:must|should|shall)\s+([^.;!\n]{15,120})/gi;
+    const acRe = /(?:(?:the\s+)?(?:system|application|app)\s+)?(?:must|should|shall)\s+([^.;!\n]+)/gi;
     let acMatch;
     while ((acMatch = acRe.exec(text)) !== null) {
         const clause = acMatch[1].replace(/\s+/g, ' ').trim();
-        if (clause && !acceptanceClauses.includes(clause)) acceptanceClauses.push(clause);
+        if (clause.length >= 10 && clause.length <= 150 && !acceptanceClauses.includes(clause)) {
+            acceptanceClauses.push(clause);
+        }
     }
 
     return { action, entity, actor, module, fields, constraints, acceptanceClauses };
@@ -703,7 +726,7 @@ function buildActionSpecificSteps(action, entity, module, feature, actor, fields
     const actorLabel = actor   || 'user';
     const a          = (action || '').toLowerCase();
     const fieldSpec  = fields && fields.length
-        ? fields.slice(0, 5).map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+        ? fields.slice(0, 5).map(capitalizeFirst).join(', ')
         : null;
 
     if (/^(login|log in|sign in)$/.test(a)) {
@@ -849,7 +872,7 @@ function buildActionSpecificSteps(action, entity, module, feature, actor, fields
             `Navigate to ${navTarget}.`,
             `Compose or select the ${subject} to ${a}.`,
             `Specify the recipient(s) with valid details.`,
-            `Click '${a.charAt(0).toUpperCase() + a.slice(1)}' and confirm.`,
+            `Click '${capitalizeFirst(a)}' and confirm.`,
             `Verify the ${subject} is sent/shared successfully and appears in the relevant history.`,
         ];
     }
